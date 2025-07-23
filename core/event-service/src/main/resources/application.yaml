@@ -1,6 +1,7 @@
+#file: noinspection undefined
 spring:
   application:
-    name: gateway-server
+    name: event-service
   config:
     import: "configserver:"
   cloud:
@@ -18,7 +19,7 @@ eureka:
     service-url:
       defaultZone: http://${eureka.instance.hostname:localhost}:${eureka.instance.port:8761}/eureka/
   instance:
-    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${random.uuid}
+    preferIpAddress: true
     hostname: localhost
-    instance-id: "${spring.application.name}:${random.value}"
     lease-renewal-interval-in-seconds: 10
