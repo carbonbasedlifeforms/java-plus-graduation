@@ -1,12 +1,13 @@
 package ru.practicum.controller.publicapi;
 
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
-import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import ru.practicum.dto.event.EventDto;
 import ru.practicum.dto.event.EventShortDto;
 import ru.practicum.dto.event.enums.SortingOptions;
@@ -19,10 +20,8 @@ import java.util.List;
 @RestController
 @RequestMapping("/events")
 @RequiredArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE)
 public class PublicEventController {
-    @Autowired
-    EventService eventService;
+    private final EventService eventService;
 
     @GetMapping
     public Collection<EventShortDto> getEvents(@RequestParam(required = false) String text,

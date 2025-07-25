@@ -8,8 +8,6 @@ import ru.practicum.dto.comment.CommentDto;
 import ru.practicum.dto.event.EventDto;
 import ru.practicum.dto.event.EventShortDto;
 import ru.practicum.dto.event.NewEventDto;
-import ru.practicum.dto.user.UserDto;
-import ru.practicum.dto.user.UserShortDto;
 import ru.practicum.model.Event;
 
 import java.util.List;
@@ -22,8 +20,6 @@ public interface EventMapper {
 
     @Mapping(target = "initiator.id", source = "initiatorId")
     EventDto getEventDto(Event event);
-
-//    EventDto getEventDto(Event event, UserShortDto initiator);
 
     @Mapping(target = "comments", source = "commentDtos")
     EventDto getEventDtoWithComments(Event event, List<CommentDto> commentDtos);

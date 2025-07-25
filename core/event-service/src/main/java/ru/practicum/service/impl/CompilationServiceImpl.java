@@ -29,12 +29,13 @@ public class CompilationServiceImpl implements CompilationService {
     public CompilationDto create(NewCompilationDto newCompilationDto) {
         Compilation compilation = CompilationMapper.INSTANCE.getCompilation(newCompilationDto);
         compilation = compilationRepository.save(compilation);
-
+        log.info("create Compilation: newCompilationDto = {}", newCompilationDto);
         return CompilationMapper.INSTANCE.getCompilationDto(compilation);
     }
 
     @Override
     public void deleteById(Long id) {
+        log.info("delete Compilation: id = {}", id);
         if (!compilationRepository.existsById(id)) {
             throw new NotFoundException("compilation is not found with id = " + id);
         } else {
@@ -46,7 +47,7 @@ public class CompilationServiceImpl implements CompilationService {
     public CompilationDto getById(Long id) {
         Compilation compilation = compilationRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("compilation is not found with id = " + id));
-
+        log.info("get Compilation By Id: id = {}", id);
         return CompilationMapper.INSTANCE.getCompilationDto(compilation);
     }
 
@@ -55,7 +56,7 @@ public class CompilationServiceImpl implements CompilationService {
     public CompilationDto updateById(Long id, UpdateCompilationRequest updateCompilationRequest) {
         Compilation compilation = compilationRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("compilation is not found with id = " + id));
-
+        log.info("update Compilation: id = {}, updateCompilationRequest = {}", id, updateCompilationRequest);
         CompilationMapper.INSTANCE.update(compilation, updateCompilationRequest);
         return CompilationMapper.INSTANCE.getCompilationDto(compilation);
     }
@@ -63,7 +64,7 @@ public class CompilationServiceImpl implements CompilationService {
     @Override
     public List<CompilationDto> getCompilationsByFilter(Boolean pinned, int from, int size) {
         Pageable pageable = PageRequest.of(from, size);
-
+        log.info("get Compilations By Filter: pinned = {}, from = {}, size = {}", pinned, from, size);
         return compilationRepository.findAllByFilterPublic(pinned, pageable).stream()
                 .map(CompilationMapper.INSTANCE::getCompilationDto)
                 .toList();

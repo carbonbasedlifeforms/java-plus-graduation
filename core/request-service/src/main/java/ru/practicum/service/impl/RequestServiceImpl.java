@@ -111,10 +111,10 @@ public class RequestServiceImpl implements RequestService {
         if (limit == 0)
             throw new ConflictException("Limit of participant reached");
         for (Request req : requests) {
-            if (!req.getStatus().equals(RequestStatus.PENDING))
+            if (!RequestStatus.PENDING.equals(req.getStatus()))
                 throw new ConflictException("Status of the request with id = %d is %s"
                         .formatted(req.getId(), req.getStatus()));
-            if (request.getStatus().equals(RequestStatus.REJECTED)) {
+            if (RequestStatus.REJECTED.equals(request.getStatus())) {
                 req.setStatus(RequestStatus.REJECTED);
             } else if (event.getParticipantLimit() == 0 || !event.getRequestModeration()) {
                 req.setStatus(RequestStatus.CONFIRMED);
@@ -149,5 +149,4 @@ public class RequestServiceImpl implements RequestService {
         userClient.findUserById(userId)
                 .orElseThrow(() -> new NotFoundException("User is not found with id = " + userId));
     }
-
 }

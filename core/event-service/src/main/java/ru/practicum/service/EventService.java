@@ -1,7 +1,11 @@
 package ru.practicum.service;
 
 import jakarta.servlet.http.HttpServletRequest;
-import ru.practicum.dto.event.*;
+import ru.practicum.dto.event.EventDto;
+import ru.practicum.dto.event.EventShortDto;
+import ru.practicum.dto.event.NewEventDto;
+import ru.practicum.dto.event.UpdateEventAdminRequest;
+import ru.practicum.dto.event.UpdateEventUserRequest;
 import ru.practicum.dto.event.enums.SortingOptions;
 
 import java.util.List;

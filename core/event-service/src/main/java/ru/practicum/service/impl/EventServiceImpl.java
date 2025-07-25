@@ -2,6 +2,7 @@ package ru.practicum.service.impl;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
@@ -16,7 +17,11 @@ import ru.practicum.client.UserClient;
 import ru.practicum.dal.CommentRepository;
 import ru.practicum.dal.EventRepository;
 import ru.practicum.dal.LocationRepository;
-import ru.practicum.dto.event.*;
+import ru.practicum.dto.event.EventDto;
+import ru.practicum.dto.event.EventShortDto;
+import ru.practicum.dto.event.NewEventDto;
+import ru.practicum.dto.event.UpdateEventAdminRequest;
+import ru.practicum.dto.event.UpdateEventUserRequest;
 import ru.practicum.dto.event.enums.EventActionStateAdmin;
 import ru.practicum.dto.event.enums.EventState;
 import ru.practicum.dto.event.enums.SortingOptions;
@@ -39,26 +44,17 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class EventServiceImpl implements EventService {
-    @Autowired
-    LocationRepository locationRepository;
-
-    @Autowired
-    UserClient userClient;
-
-    @Autowired
-    EventRepository eventRepository;
-
-    @Autowired
-    CommentRepository commentRepository;
-
-    @Autowired
-    private StatsClient statsClient;
-
-    @Autowired
-    private CommentMapper commentMapper;
+    private final LocationRepository locationRepository;
+    private final UserClient userClient;
+    private final EventRepository eventRepository;
+    private final CommentRepository commentRepository;
+    private final StatsClient statsClient;
+    private final CommentMapper commentMapper;
 
     @Override
+    @Transactional
     public EventDto save(long userId, NewEventDto newEventDto) {
         LocalDateTime validDate = LocalDateTime.now().plusHours(2L);
         if (newEventDto.getEventDate() != null && newEventDto.getEventDate().isBefore(validDate)) {
@@ -75,12 +71,13 @@ public class EventServiceImpl implements EventService {
         event.setState(EventState.PENDING);
         event.setCreatedOn(LocalDateTime.now());
         event.setLocation(location);
-
+        log.info("Event {} created", event);
         return EventMapper.INSTANCE.getEventDto(eventRepository.save(event));
     }
 
     @Override
     public EventDto findEvent(long eventId, long userId) {
+        log.info("find event by id {} and user id {}", eventId, userId);
         return EventMapper.INSTANCE.getEventDto(
                 eventRepository.findByIdAndUserId(eventId, userId)
                         .orElseThrow(() -> new NotFoundException("event is not found with id = " + eventId))
@@ -92,7 +89,7 @@ public class EventServiceImpl implements EventService {
         checkAndGetUser(userId);
 
         Pageable pageable = PageRequest.of(from, size);
-
+        log.info("find events by user id {}", userId);
         return eventRepository.findByUserId(userId, pageable).stream()
                 .map(EventMapper.INSTANCE::getEventShortDto)
                 .toList();
@@ -114,7 +111,7 @@ public class EventServiceImpl implements EventService {
         }
 
         EventUpdater.INSTANCE.update(baseEvent, updateEventUserRequest);
-
+        log.info("Event {} updated", baseEvent);
         return EventMapper.INSTANCE.getEventDto(baseEvent);
     }
 
@@ -153,6 +150,7 @@ public class EventServiceImpl implements EventService {
             event.setConfirmedRequests(0L);
             event.setViews(0L);
         }
+        log.info("Event {} updated by admin", event);
         return EventMapper.INSTANCE.getEventDto(event);
     }
 
@@ -176,6 +174,7 @@ public class EventServiceImpl implements EventService {
         if (rangeEnd != null) {
             end = LocalDateTime.parse(rangeEnd, Constants.DATE_TIME_FORMATTER);
         }
+        log.info("find events by filter {} {} {} {} {} {} {}", users, states, categories, start, end, from, size);
         return eventRepository.findAllByFilter(users, states, categories, start, end, pageable).stream()
                 .map(EventMapper.INSTANCE::getEventDto)
                 .toList();
@@ -236,6 +235,8 @@ public class EventServiceImpl implements EventService {
                     .ifPresent(x -> x.setViews(hits));
         });
         eventRepository.saveAll(events);
+
+        log.info("return result {}", events);
         return events.stream()
                 .map(EventMapper.INSTANCE::getEventShortDto)
                 .toList();
@@ -259,6 +260,7 @@ public class EventServiceImpl implements EventService {
         if (!comments.isEmpty()) {
             return EventMapper.INSTANCE.getEventDtoWithComments(baseEvent, commentMapper.toCommentDtoList(comments));
         }
+        log.info("Event {} found", event);
         return EventMapper.INSTANCE.getEventDto(baseEvent);
     }
 
@@ -276,6 +278,7 @@ public class EventServiceImpl implements EventService {
         if (event.getState() != EventState.PUBLISHED) {
             throw new ConflictException("Not possible to update confirmed requests for not published event");
         }
+        log.info("update confirmed requests for event {}", event);
         event.setConfirmedRequests(confirmed);
     }
 
