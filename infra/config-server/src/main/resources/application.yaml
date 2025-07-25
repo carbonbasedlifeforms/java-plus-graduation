@@ -22,5 +22,5 @@ eureka:
     preferIpAddress: true
 logging:
   level:
-    org.springframework.cloud.config.server: DEBUG
-    org.springframework.web: DEBUG
+    org.springframework.cloud.config.server: INFO
+    org.springframework.web: INFO
