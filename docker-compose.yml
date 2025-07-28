@@ -18,3 +18,23 @@ services:
       - POSTGRES_DB=ewmdb
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
+
+  user-db:
+    image: postgres:16.1
+    container_name: user-db-container
+    ports:
+      - "6434:5432"
+    environment:
+      - POSTGRES_DB=userdb
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+
+  request-db:
+    image: postgres:16.1
+    container_name: request-db-container
+    ports:
+      - "6435:5432"
+    environment:
+      - POSTGRES_DB=requestdb
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
