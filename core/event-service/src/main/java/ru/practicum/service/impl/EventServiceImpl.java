@@ -4,15 +4,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-import ru.practicum.Constants;
-import ru.practicum.StatsHitDto;
-import ru.practicum.StatsViewDto;
-import ru.practicum.client.StatsClient;
+import ru.practicum.client.CollectorClient;
+import ru.practicum.client.RecommendationsClient;
 import ru.practicum.client.UserClient;
 import ru.practicum.dal.CommentRepository;
 import ru.practicum.dal.EventRepository;
@@ -22,12 +19,15 @@ import ru.practicum.dto.event.EventShortDto;
 import ru.practicum.dto.event.NewEventDto;
 import ru.practicum.dto.event.UpdateEventAdminRequest;
 import ru.practicum.dto.event.UpdateEventUserRequest;
+import ru.practicum.dto.event.enums.ActionType;
 import ru.practicum.dto.event.enums.EventActionStateAdmin;
 import ru.practicum.dto.event.enums.EventState;
 import ru.practicum.dto.event.enums.SortingOptions;
+import ru.practicum.dto.stats.Constants;
 import ru.practicum.exceptions.ConflictException;
 import ru.practicum.exceptions.NotFoundException;
 import ru.practicum.exceptions.ValidationException;
+import ru.practicum.grpc.stats.event.RecommendedEventProto;
 import ru.practicum.mappers.CommentMapper;
 import ru.practicum.mappers.EventMapper;
 import ru.practicum.mappers.EventUpdater;
@@ -36,11 +36,10 @@ import ru.practicum.model.Event;
 import ru.practicum.model.Location;
 import ru.practicum.service.EventService;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -50,7 +49,8 @@ public class EventServiceImpl implements EventService {
     private final UserClient userClient;
     private final EventRepository eventRepository;
     private final CommentRepository commentRepository;
-    private final StatsClient statsClient;
+    private final CollectorClient collectorClient;
+    private final RecommendationsClient recommendationsClient;
     private final CommentMapper commentMapper;
 
     @Override
@@ -148,7 +148,7 @@ public class EventServiceImpl implements EventService {
         if (event.getState() == EventState.PUBLISHED) {
             event.setPublishedOn(LocalDateTime.now());
             event.setConfirmedRequests(0L);
-            event.setViews(0L);
+            event.setRating(0D);
         }
         log.info("Event {} updated by admin", event);
         return EventMapper.INSTANCE.getEventDto(event);
@@ -209,31 +209,9 @@ public class EventServiceImpl implements EventService {
             }
         }
 
-        sendStats(request);
-
         List<Event> events = eventRepository.findAllByFilterPublic(text, categories, paid, start, end, onlyAvailable,
                 EventState.PUBLISHED, pageable);
 
-        List<String> uris = events.stream()
-                .map(x -> "/event/" + x.getId())
-                .toList();
-
-        String startStatsDate = events.stream()
-                .map(Event::getPublishedOn)
-                .min(LocalDateTime::compareTo).get().format(Constants.DATE_TIME_FORMATTER);
-        String endStatsDate = LocalDateTime.now().format(Constants.DATE_TIME_FORMATTER);
-
-        List<StatsViewDto> statViews = statsClient.getStats(startStatsDate, endStatsDate, uris, false);
-        Map<String, Long> eventViews = statViews.stream()
-                .collect(Collectors.toMap(StatsViewDto::getUri, StatsViewDto::getHits));
-        eventViews.forEach((uri, hits) -> {
-            String[] uriSplit = "/".split(uri);
-            long partUri = Long.parseLong(uriSplit[uriSplit.length - 1]);
-            events.stream()
-                    .filter(x -> x.getId() == partUri)
-                    .findFirst()
-                    .ifPresent(x -> x.setViews(hits));
-        });
         eventRepository.saveAll(events);
 
         log.info("return result {}", events);
@@ -243,17 +221,15 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    public EventDto findEventPublic(long eventId, HttpServletRequest request) {
+    public EventDto findEventPublic(long eventId, long userId) {
         Event baseEvent = eventRepository.findByIdAndStatus(eventId, EventState.PUBLISHED)
                 .orElseThrow(() -> new NotFoundException("published event is not found with id = " + eventId));
-        sendStats(request);
-        List<StatsViewDto> views = statsClient.getStats(baseEvent.getPublishedOn()
-                        .format(Constants.DATE_TIME_FORMATTER),
-                LocalDateTime.now().format(Constants.DATE_TIME_FORMATTER),
-                List.of(request.getRequestURI()),
-                true);
-        log.debug("received from stats client list of StatsViewDto: {}", views);
-        baseEvent.setViews(views.get(0).getHits());
+        collectorClient.sendAction(eventId, userId, ActionType.ACTION_VIEW.name(), Instant.now());
+        Double rating = recommendationsClient.getInteractionsCount(List.of(eventId))
+                .mapToDouble(RecommendedEventProto::getScore)
+                .sum();
+        log.info("current rating {}", rating);
+        baseEvent.setRating(rating);
         Event event = eventRepository.save(baseEvent);
         checkAndGetUser(event.getInitiatorId());
         List<Comment> comments = commentRepository.findAllByEventId(eventId);
@@ -282,19 +258,28 @@ public class EventServiceImpl implements EventService {
         event.setConfirmedRequests(confirmed);
     }
 
+    @Override
+    public List<EventShortDto> getRecommendations(long userId, int maxResult) {
+        List<Long> eventIds =  recommendationsClient.getRecommendationsForUser(userId, maxResult)
+                .mapToLong(RecommendedEventProto::getEventId)
+                .boxed()
+                .toList();
+        log.info("getting event ids {}", eventIds);
+        List<EventShortDto> result = eventRepository.findAllById(eventIds).stream()
+                .map(EventMapper.INSTANCE::getEventShortDto)
+                .toList();
+        log.info("return Events with recommendations {}", result);
+        return result;
+    }
+
+    @Override
+    public void likeEvent(long eventId, long userId) {
+        log.info("like event {} by user {}", eventId, userId);
+        collectorClient.sendAction(eventId, userId, ActionType.ACTION_LIKE.name(), Instant.now());
+    }
+
     private void checkAndGetUser(long userId) {
         userClient.findUserById(userId)
                 .orElseThrow(() -> new NotFoundException("User is not found with id = " + userId));
-    }
-
-    private void sendStats(HttpServletRequest request) {
-        log.debug("save stats hit, uri = {}", request.getRequestURI());
-        log.debug("save stats hit, remoteAddr = {}", request.getRemoteAddr());
-        statsClient.hit(StatsHitDto.builder()
-                .app("event-service")
-                .uri(request.getRequestURI())
-                .ip(request.getRemoteAddr())
-                .timestamp(LocalDateTime.now())
-                .build());
     }
 }

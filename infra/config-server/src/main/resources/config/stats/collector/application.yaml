@@ -1,0 +1,19 @@
+#file: noinspection undefined
+server:
+  port: 0
+spring:
+  application:
+    name: collector
+grpc:
+  server:
+    port: 0
+  grpc:
+    client:
+      collector:
+        address: 'discovery:///collector'
+        enableKeepAlive: true
+        keepAliveWithoutCalls: true
+        negotiationType: plaintext
+kafka:
+  bootstrap-server: "localhost:9092"
+  topic: "stats.user-actions.v1"
